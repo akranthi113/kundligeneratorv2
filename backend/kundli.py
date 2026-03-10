@@ -153,7 +153,8 @@ def compute_kundli(
     flags = _swe_setup(ephe_path, zodiac, ayanamsa)
 
     # Houses (cusps[1..12]) and ascmc[0]=Asc, ascmc[1]=MC
-    cusps_arr, ascmc = swe.houses_ex(jd_ut, flags, lat, lon, house_system)
+    # pyswisseph/swe_ctypes signature: (jd, lat, lon, hsys, iflag)
+    cusps_arr, ascmc = swe.houses_ex(jd_ut, lat, lon, house_system.encode(), flags)
     cusps = [float(cusps_arr[i]) for i in range(1, 13)]
     asc = float(ascmc[0])
     mc = float(ascmc[1])

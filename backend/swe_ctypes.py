@@ -107,15 +107,23 @@ class SwissEphDll:
         return [float(v) for v in xx], retflag
 
     def houses_ex(
-        self, tjd_ut: float, iflag: int, geolat: float, geolon: float, hsys: str
+        self, tjd_ut: float, geolat: float, geolon: float, hsys: str | bytes, iflag: int = 0
     ) -> tuple[list[float], list[float]]:
-        if not hsys or len(hsys) != 1:
-            raise ValueError("house_system must be a single character, e.g. 'P' or 'E'")
+        # pyswisseph/Render signature seems to be (jd, lat, lon, hsys, iflag)
+        # where hsys is at position 4 (1-indexed).
+        if isinstance(hsys, str):
+            if len(hsys) != 1:
+                raise ValueError("house_system must be a single character, e.g. 'P' or 'E'")
+            hsys_code = ord(hsys)
+        else:
+            # bytes
+            hsys_code = hsys[0]
+
         cusp = (c_double * 13)()
         ascmc = (c_double * 10)()
         _ = int(
             self._dll.swe_houses_ex(
-                float(tjd_ut), int(iflag), float(geolat), float(geolon), ord(hsys), cusp, ascmc
+                float(tjd_ut), int(iflag), float(geolat), float(geolon), hsys_code, cusp, ascmc
             )
         )
         return [float(v) for v in cusp], [float(v) for v in ascmc]
@@ -150,9 +158,9 @@ def calc_ut(tjd_ut: float, ipl: int, iflag: int) -> tuple[list[float], int]:
 
 
 def houses_ex(
-    tjd_ut: float, iflag: int, geolat: float, geolon: float, hsys: str
+    tjd_ut: float, geolat: float, geolon: float, hsys: str | bytes, iflag: int = 0
 ) -> tuple[list[float], list[float]]:
-    return _SWE.houses_ex(tjd_ut, iflag, geolat, geolon, hsys)
+    return _SWE.houses_ex(tjd_ut, geolat, geolon, hsys, iflag)
 
 
 def get_current_file_data(ifno: int) -> tuple[str | None, float, float, int]:
