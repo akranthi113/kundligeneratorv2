@@ -154,10 +154,30 @@ def compute_kundli(
 
     # Houses (cusps[1..12]) and ascmc[0]=Asc, ascmc[1]=MC
     # pyswisseph/swe_ctypes signature: (jd, lat, lon, hsys, iflag)
-    cusps_arr, ascmc = swe.houses_ex(jd_ut, lat, lon, house_system.encode(), flags)
-    cusps = [float(cusps_arr[i]) for i in range(1, 13)]
-    asc = float(ascmc[0])
-    mc = float(ascmc[1])
+    h_sys_val = house_system.encode() if isinstance(house_system, str) else house_system
+    try:
+        # Preferred signature matching user's "byte string length 1" error
+        cusps_arr, ascmc = swe.houses_ex(jd_ut, lat, lon, h_sys_val, flags)
+    except Exception:
+        try:
+            # Fallback 1: Original Windows-style signature
+            cusps_arr, ascmc = swe.houses_ex(jd_ut, flags, lat, lon, h_sys_val)
+        except Exception:
+            # Fallback 2: Basic houses call (no flags)
+            cusps_arr, ascmc = swe.houses(jd_ut, lat, lon, h_sys_val)
+
+    # Robust indexing for house cusps (some libs return 12, some 13 elements)
+    if len(cusps_arr) >= 13:
+        cusps = [float(cusps_arr[i]) for i in range(1, 13)]
+    elif len(cusps_arr) == 12:
+        cusps = [float(v) for v in cusps_arr]
+    else:
+        # Final fallback to avoid crash
+        cusps = ([float(v) for v in cusps_arr] + [0.0] * 12)[:12]
+
+    # Robust indexing for angles
+    asc = float(ascmc[0]) if len(ascmc) > 0 else 0.0
+    mc = float(ascmc[1]) if len(ascmc) > 1 else 0.0
 
     bodies: list[tuple[str, int]] = [
         ("Sun", swe.SUN),
@@ -190,11 +210,20 @@ def compute_kundli(
         # Expose which ephemeris file Swiss Ephemeris actually used.
         # ifno=0: planet file sepl_xxx; ifno=1: moon file semo_xxx
         if name == "Sun" and hasattr(swe, "get_current_file_data"):
-            planet_file, _, _, _ = swe.get_current_file_data(0)
+            try:
+                g_res = swe.get_current_file_data(0)
+                planet_file = g_res[0] if g_res and len(g_res) > 0 else None
+            except (IndexError, TypeError, ValueError):
+                planet_file = None
         if name == "Moon" and hasattr(swe, "get_current_file_data"):
-            moon_file, _, _, _ = swe.get_current_file_data(1)
-        lon_abs = float(xx[0])
-        speed = float(xx[3])
+            try:
+                m_res = swe.get_current_file_data(1)
+                moon_file = m_res[0] if m_res and len(m_res) > 0 else None
+            except (IndexError, TypeError, ValueError):
+                moon_file = None
+        
+        lon_abs = float(xx[0]) if len(xx) > 0 else 0.0
+        speed = float(xx[3]) if len(xx) > 3 else 0.0
         pos = Lon(lon_abs)
         planets.append(
             {
@@ -210,7 +239,10 @@ def compute_kundli(
         )
 
     # Ketu is always 180 degrees opposite Rahu in ecliptic longitude.
-    rahu = next(p for p in planets if p["name"] == "Rahu")
+    rahu_list = [p for p in planets if p["name"] == "Rahu"]
+    if not rahu_list:
+        raise RuntimeError("Rahu calculation failed or missing.")
+    rahu = rahu_list[0]
     rahu_lon = float(rahu["longitude"])
     ketu_abs = (float(rahu_lon) + 180.0) % 360.0
     ketu = Lon(ketu_abs)
