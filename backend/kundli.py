@@ -11,6 +11,7 @@ try:
 except ModuleNotFoundError:  # pragma: no cover
     # Use the official Swiss Ephemeris DLL (Windows) when pyswisseph isn't available.
     from . import swe_ctypes as swe
+from . import astrology_data
 
 
 SIGN_NAMES = [
@@ -235,6 +236,7 @@ def compute_kundli(
                 "speed": round(speed, 9),
                 "retrograde": bool(speed < 0.0),
                 "house": _house_of(pos.norm, cusps),
+                "analysis": astrology_data.get_analysis(pos.norm)
             }
         )
 
@@ -257,6 +259,7 @@ def compute_kundli(
             "speed": ketu_speed,
             "retrograde": bool(rahu.get("retrograde", True)),
             "house": _house_of(ketu.norm, cusps),
+            "analysis": astrology_data.get_analysis(ketu.norm)
         }
     )
 
@@ -270,6 +273,7 @@ def compute_kundli(
                 "sign_index": p.sign_index,
                 "sign": p.sign_name,
                 "deg_in_sign": round(p.deg_in_sign, 6),
+                "analysis": astrology_data.get_analysis(p.norm)
             }
         )
 
@@ -305,4 +309,13 @@ def compute_kundli(
         },
         "planets": planets,
         "houses": houses,
+        "ruling_planets": {
+            "ascendant": astrology_data.get_analysis(asc),
+            "moon": astrology_data.get_analysis(next(p["longitude"] for p in planets if p["name"] == "Moon")),
+            "day_lord": astrology_data.get_day_lord(date)
+        },
+        "dashas": astrology_data.get_v_dasha(
+            next(p["longitude"] for p in planets if p["name"] == "Moon"),
+            local_dt
+        )
     }

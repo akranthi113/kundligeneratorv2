@@ -14,6 +14,10 @@ const transitGridEl = document.getElementById("transit-grid");
 const transitMetaEl = document.getElementById("transit-meta");
 const placeInput = document.getElementById("place");
 const searchResults = document.getElementById("search-results");
+const rulingPlanetsEl = document.getElementById("ruling-planets");
+const planetTableBody = document.querySelector("#planet-table tbody");
+const houseTableBody = document.querySelector("#house-table tbody");
+const dashaListEl = document.getElementById("dasha-list");
 
 let localPlaces = [];
 let lastPayload = null;
@@ -102,6 +106,159 @@ function fill(data) {
 
   renderChart(data, { gridEl: natalGridEl, idPrefix: "natal", centerTitle: "RASHI" });
   setupDerivedChartsUI();
+
+  // New KP and Dasha sections
+  fillRulingPlanets(data.ruling_planets);
+  fillPlanetAnalysis(data.planets);
+  fillHouseAnalysis(data.houses);
+  fillDasha(data.dashas);
+}
+
+function fillRulingPlanets(rp) {
+  if (!rulingPlanetsEl || !rp) return;
+  rulingPlanetsEl.innerHTML = "";
+
+  const roles = [
+    { label: "Day Lord", planet: rp.day_lord },
+    { label: "Asc Sign Lord", planet: rp.ascendant?.sign_lord },
+    { label: "Asc Nak Lord", planet: rp.ascendant?.nak_lord },
+    { label: "Asc Sub Lord", planet: rp.ascendant?.sub_lord },
+    { label: "Moon Sign Lord", planet: rp.moon?.sign_lord },
+    { label: "Moon Nak Lord", planet: rp.moon?.nak_lord },
+    { label: "Moon Sub Lord", planet: rp.moon?.sub_lord },
+  ];
+
+  roles.forEach(r => {
+    const item = document.createElement("div");
+    item.className = "ruling-item";
+    item.innerHTML = `
+      <div class="ruling-role">${r.label}</div>
+      <div class="ruling-planet">${r.planet || "-"}</div>
+    `;
+    rulingPlanetsEl.appendChild(item);
+  });
+}
+
+function fillPlanetAnalysis(planets) {
+  if (!planetTableBody || !planets) return;
+  planetTableBody.innerHTML = "";
+
+  planets.forEach(p => {
+    const an = p.analysis || {};
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td style="font-weight:700">${p.name}</td>
+      <td>${p.sign}</td>
+      <td class="deg">${p.deg_in_sign.toFixed(2)}°</td>
+      <td>${an.sign_lord || "-"}</td>
+      <td>${an.nak_lord || "-"}</td>
+      <td>${an.sub_lord || "-"}</td>
+      <td>${an.sub_sub_lord || "-"}</td>
+    `;
+    planetTableBody.appendChild(tr);
+  });
+}
+
+function fillHouseAnalysis(houses) {
+  if (!houseTableBody || !houses) return;
+  houseTableBody.innerHTML = "";
+
+  houses.forEach(h => {
+    const an = h.analysis || {};
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td style="font-weight:700">House ${h.house}</td>
+      <td>${h.sign}</td>
+      <td class="deg">${h.deg_in_sign.toFixed(2)}°</td>
+      <td>${an.sign_lord || "-"}</td>
+      <td>${an.nak_lord || "-"}</td>
+      <td>${an.sub_lord || "-"}</td>
+      <td>${an.sub_sub_lord || "-"}</td>
+    `;
+    houseTableBody.appendChild(tr);
+  });
+}
+
+function fillDasha(dashas) {
+  if (!dashaListEl || !dashas) return;
+  dashaListEl.innerHTML = "";
+
+  const formatDate = (iso) => {
+    if (!iso) return "-";
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  };
+
+  dashas.forEach((md, i) => {
+    const mdItem = document.createElement("div");
+    mdItem.className = "dasha-item";
+    if (i === 0) mdItem.classList.add("open"); // Open first MD by default
+
+    const mdRow = document.createElement("div");
+    mdRow.className = "md-row";
+    mdRow.innerHTML = `
+      <div class="dasha-planet">${md.planet} Mahadasha</div>
+      <div class="dasha-dates">${formatDate(md.start)} - ${formatDate(md.end)}</div>
+    `;
+    mdRow.onclick = () => mdItem.classList.toggle("open");
+    mdItem.appendChild(mdRow);
+
+    const adContainer = document.createElement("div");
+    adContainer.className = "ad-container";
+
+    (md.antardashas || []).forEach(ad => {
+      const adItem = document.createElement("div");
+      adItem.className = "ad-item";
+
+      const adRow = document.createElement("div");
+      adRow.className = "ad-row";
+      adRow.innerHTML = `
+        <div class="dasha-planet">${ad.planet}</div>
+        <div class="dasha-dates">${formatDate(ad.start)} - ${formatDate(ad.end)}</div>
+      `;
+      adRow.onclick = (e) => {
+        e.stopPropagation();
+        adItem.classList.toggle("open");
+      };
+      adItem.appendChild(adRow);
+
+      const pdContainer = document.createElement("div");
+      pdContainer.className = "pd-container";
+
+      (ad.paryantardashas || []).forEach(pd => {
+        const pdRow = document.createElement("div");
+        pdRow.className = "pd-row";
+        pdRow.innerHTML = `
+          <div class="dasha-planet">${pd.planet}</div>
+          <div class="dasha-dates">${formatDate(pd.start)} - ${formatDate(pd.end)}</div>
+        `;
+        pdContainer.appendChild(pdRow);
+      });
+
+      adItem.appendChild(pdContainer);
+      adContainer.appendChild(adItem);
+    });
+
+    mdItem.appendChild(adContainer);
+    dashaListEl.appendChild(mdItem);
+  });
+}
+
+function setupTabs() {
+  const tabBtns = document.querySelectorAll(".tab-btn");
+  const tabPanes = document.querySelectorAll(".tab-pane");
+
+  tabBtns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const target = btn.dataset.tab;
+
+      tabBtns.forEach(b => b.classList.remove("active"));
+      tabPanes.forEach(p => p.classList.remove("active"));
+
+      btn.classList.add("active");
+      document.getElementById(target).classList.add("active");
+    });
+  });
 }
 
 function renderChart(data, { gridEl, idPrefix, centerTitle }) {
@@ -497,6 +654,7 @@ form.addEventListener("submit", async (e) => {
 });
 
 initDefaults();
+setupTabs();
 
 async function refreshHealth() {
   if (!healthEl) return;
